@@ -1,5 +1,12 @@
 ## U-ViT<br> <sub><small>Official PyTorch implementation of [All are Worth Words: A ViT Backbone for Diffusion Models](https://arxiv.org/abs/2209.12152) (CVPR 2023)</small></sub>
 
+## smooth env on 8xh100
+
+```
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+pip install accelerate absl-py ml_collections einops wandb ftfy transformers
+```
+
 
 💡Projects with U-ViT: 
 * [UniDiffuser](https://github.com/thu-ml/unidiffuser), a multi-modal large-scale diffusion model based on a 1B U-ViT, is open-sourced
