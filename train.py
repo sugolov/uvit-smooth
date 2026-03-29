@@ -41,15 +41,8 @@ def train(config):
         os.makedirs(config.sample_dir, exist_ok=True)
     accelerator.wait_for_everyone()
     if accelerator.is_main_process:
-        wandb.init(
-            dir=os.path.abspath(config.workdir),
-            project=f'uvit_{config.dataset.name}',
-            entity=os.environ.get('WANDB_ENTITY', 'hmeng-university-of-toronto'),
-            config=config.to_dict(),
-            name=config.hparams,
-            job_type='train',
-            mode='online',
-        )
+        wandb.init(dir=os.path.abspath(config.workdir), project=f'uvit_{config.dataset.name}', config=config.to_dict(),
+                   name=config.hparams, job_type='train', mode='online')
         utils.set_logger(log_level='info', fname=os.path.join(config.workdir, 'output.log'))
         logging.info(config)
     else:
@@ -92,9 +85,7 @@ def train(config):
             raise NotImplementedError(config.train.mode)
         _metrics['loss'] = accelerator.gather(loss.detach()).mean()
         accelerator.backward(loss.mean())
-        if 'grad_clip' in config and config.grad_clip > 0:
-            accelerator.clip_grad_norm_(nnet.parameters(), max_norm=config.grad_clip)
-        optimizer.step()
+        utils.uvit_clip_grad_step(accelerator, nnet, optimizer, config)
         lr_scheduler.step()
         train_state.ema_update(config.get('ema_rate', 0.9999))
         train_state.step += 1
