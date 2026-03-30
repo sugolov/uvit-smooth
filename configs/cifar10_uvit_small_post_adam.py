@@ -1,10 +1,12 @@
 """CIFAR-10 U-ViT-S/2 with post-Adam update smoothing (DeiT-style filters on Adam deltas)."""
-
+import ml_collections
 from configs.cifar10_uvit_small import get_config as _base_config
 
 
 def get_config():
     config = _base_config()
+
+    config.grad_smooth = ml_collections.ConfigDict()
     config.grad_smooth.method = "window"
     config.grad_smooth.post_adam = True
     # Match deit_fork post_adam_smoother default traversal for window/laplacian
