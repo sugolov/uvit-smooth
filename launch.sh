@@ -5,7 +5,7 @@ set -e
 
 export WANDB_ENTITY=hmeng-university-of-toronto
 
-COMMON="--config.train.batch_size=256 --config.optimizer.lr=0.0004 --config.sample.n_samples=10000 --config.sample.sample_steps=50 --config.sample.algorithm=dpm_solver"
+COMMON="--config.sample.n_samples=10000 --config.sample.sample_steps=50 --config.sample.algorithm=dpm_solver"
 BASE_CONFIG="configs/cifar10_uvit_small.py"
 SMOOTH_CONFIG="configs/cifar10_uvit_small_post_adam.py"
 
@@ -55,7 +55,13 @@ CUDA_VISIBLE_DEVICES=6 accelerate launch --num_processes 1 --mixed_precision bf1
     --config.grad_smooth.normalize=rescale \
     $COMMON &
 
-echo "Launched 7 runs (1 baseline + 6 smoothed) on GPUs 0-6. GPU 7 free."
+CUDA_VISIBLE_DEVICES=7 accelerate launch --num_processes 1 --mixed_precision bf16 \
+    train.py --config=$SMOOTH_CONFIG \
+    --config.grad_smooth.alpha=0.15 \
+    --config.grad_smooth.normalize=rescale \
+    $COMMON &
+
+echo "Launched 8 runs (1 baseline + 7 smoothed)/"
 echo "Monitor: https://wandb.ai/hmeng-university-of-toronto/uvit_cifar10"
 
 wait
