@@ -5,7 +5,19 @@
 ```
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 pip install accelerate absl-py ml_collections einops wandb ftfy transformers
+pip install scipy
 ```
+
+### fid stat
+```
+pip install gdown
+gdown --folder https://drive.google.com/drive/folders/1yo-XhqbPue3rp5P57j6QbA5QZx6KybvP -O /tmp/fid_stats
+find /tmp/fid_stats -name "*.npz" -exec basename {} \;
+grep -rn fid_stat datasets.py
+
+
+```
+
 
 
 💡Projects with U-ViT: 
