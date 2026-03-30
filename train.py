@@ -17,6 +17,7 @@ from absl import logging
 import builtins
 import os
 import wandb
+from libs.grad_smooth_uvit import apply_raw_grad_smooth_uvit, optimizer_step_with_post_adam_uvit
 
 
 def train(config):
@@ -31,6 +32,14 @@ def train(config):
     logging.info(f'Process {accelerator.process_index} using device: {device}')
 
     config.mixed_precision = accelerator.mixed_precision
+
+    # Smoothing config (read before freezing)
+    gs = config.get('grad_smooth', None)
+    gs_method = gs.get('method', 'none') if gs is not None else 'none'
+    use_smoothing = gs_method != 'none'
+    use_post_adam = use_smoothing and gs.get('post_adam', False)
+    use_raw_grad = use_smoothing and not use_post_adam
+
     config = ml_collections.FrozenConfigDict(config)
 
     assert config.train.batch_size % accelerator.num_processes == 0
@@ -41,13 +50,26 @@ def train(config):
         os.makedirs(config.sample_dir, exist_ok=True)
     accelerator.wait_for_everyone()
     if accelerator.is_main_process:
-        wandb.init(dir=os.path.abspath(config.workdir), project=f'uvit_{config.dataset.name}', config=config.to_dict(),
-                   name=config.hparams, job_type='train', mode='online')
+        wandb.init(
+            dir=os.path.abspath(config.workdir),
+            project=f'uvit_{config.dataset.name}',
+            entity=os.environ.get('WANDB_ENTITY', 'hmeng-university-of-toronto'),
+            config=config.to_dict(),
+            name=config.run_name,
+            job_type='train',
+            mode='online',
+        )
         utils.set_logger(log_level='info', fname=os.path.join(config.workdir, 'output.log'))
         logging.info(config)
     else:
         utils.set_logger(log_level='error')
         builtins.print = lambda *args: None
+
+    if use_smoothing:
+        logging.info(f'Gradient smoothing: method={gs_method} post_adam={use_post_adam} '
+                     f'alpha={gs.get("alpha", 0.5)} normalize={gs.get("normalize", "none")} '
+                     f'proj_only={gs.get("proj_only", False)} '
+                     f'decouple_wd={gs.get("decouple_weight_decay", False)}')
 
     dataset = get_dataset(**config.dataset)
     assert os.path.exists(dataset.fid_stat)
@@ -68,11 +90,9 @@ def train(config):
 
     data_generator = get_data_generator()
 
-
     # set the score_model to train
     score_model = sde.ScoreModel(nnet, pred=config.pred, sde=sde.VPSDE())
     score_model_ema = sde.ScoreModel(nnet_ema, pred=config.pred, sde=sde.VPSDE())
-
 
     def train_step(_batch):
         _metrics = dict()
@@ -85,12 +105,24 @@ def train(config):
             raise NotImplementedError(config.train.mode)
         _metrics['loss'] = accelerator.gather(loss.detach()).mean()
         accelerator.backward(loss.mean())
-        utils.uvit_clip_grad_step(accelerator, nnet, optimizer, config)
+
+        # Raw gradient smoothing (after backward, before clip)
+        if use_raw_grad:
+            apply_raw_grad_smooth_uvit(nnet, gs)
+
+        if 'grad_clip' in config and config.grad_clip > 0:
+            accelerator.clip_grad_norm_(nnet.parameters(), max_norm=config.grad_clip)
+
+        # Optimizer step — with or without post-Adam update smoothing
+        if use_post_adam:
+            optimizer_step_with_post_adam_uvit(optimizer, nnet, gs)
+        else:
+            optimizer.step()
+
         lr_scheduler.step()
         train_state.ema_update(config.get('ema_rate', 0.9999))
         train_state.step += 1
         return dict(lr=train_state.optimizer.param_groups[0]['lr'], **_metrics)
-
 
     def eval_step(n_samples, sample_steps, algorithm):
         logging.info(f'eval_step: n_samples={n_samples}, sample_steps={sample_steps}, algorithm={algorithm}, '
@@ -239,6 +271,24 @@ def main(argv):
     config = FLAGS.config
     config.config_name = get_config_name()
     config.hparams = get_hparams()
+
+    # Build descriptive run name from smoothing config
+    gs = config.get('grad_smooth', None)
+    if gs is not None and gs.get('method', 'none') != 'none':
+        parts = [config.config_name]
+        if gs.get('post_adam', False):
+            parts.append('post-adam')
+        parts.append(gs.method)
+        parts.append(f'alpha-{gs.alpha}')
+        norm = gs.get('normalize', 'none')
+        if norm != 'none':
+            parts.append(f'norm-{norm}')
+        if gs.get('decouple_weight_decay', False):
+            parts.append('decouple-wd')
+        config.run_name = '-'.join(parts)
+    else:
+        config.run_name = f'{config.config_name}-baseline'
+
     config.workdir = FLAGS.workdir or os.path.join('workdir', config.config_name, config.hparams)
     config.ckpt_root = os.path.join(config.workdir, 'ckpts')
     config.sample_dir = os.path.join(config.workdir, 'samples')
