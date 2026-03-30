@@ -119,11 +119,11 @@ def train(config):
         else:
             optimizer.step()
 
-        if use_post_adam and train_state.step % 10 == 0 and accelerator.is_main_process:
-            unwrapped = accelerator.unwrap_model(nnet)
-            for name, blocks in [("in", unwrapped.in_blocks), ("out", unwrapped.out_blocks)]:
-                params = [list(b.parameters()) for b in blocks]
-                logging.info(f"SMOOTH CHECK: {name}_blocks={len(blocks)} blocks, {len(params[0])} params/block")
+        #if use_post_adam and train_state.step % 10 == 0 and accelerator.is_main_process:
+        #    unwrapped = accelerator.unwrap_model(nnet)
+        #    for name, blocks in [("in", unwrapped.in_blocks), ("out", unwrapped.out_blocks)]:
+        #        params = [list(b.parameters()) for b in blocks]
+        #        logging.info(f"SMOOTH CHECK: {name}_blocks={len(blocks)} blocks, {len(params[0])} params/block")
 
         lr_scheduler.step()
         train_state.ema_update(config.get('ema_rate', 0.9999))

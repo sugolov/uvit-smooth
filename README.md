@@ -15,7 +15,10 @@ gdown --folder https://drive.google.com/drive/folders/1yo-XhqbPue3rp5P57j6QbA5QZ
 find /tmp/fid_stats -name "*.npz" -exec basename {} \;
 grep -rn fid_stat datasets.py
 
+mkdir -p assets/fid_stats
+cp /tmp/fid_stats/fid_stats/*.npz assets/fid_stats/
 
+nohup bash launch.sh > launch.log 2>&1 &
 ```
 
 

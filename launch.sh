@@ -5,7 +5,7 @@ set -e
 
 export WANDB_ENTITY=hmeng-university-of-toronto
 
-COMMON="--config.sample.n_samples=10000 --config.sample.sample_steps=50 --config.sample.algorithm=dpm_solver"
+COMMON="--config.train.batch_size=256 --config.optimizer.lr=0.0004 --config.sample.n_samples=10000 --config.sample.sample_steps=50 --config.sample.algorithm=dpm_solver"
 BASE_CONFIG="configs/cifar10_uvit_small.py"
 SMOOTH_CONFIG="configs/cifar10_uvit_small_post_adam.py"
 
