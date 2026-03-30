@@ -278,7 +278,7 @@ def main(argv):
     config.config_name = get_config_name()
     config.hparams = get_hparams()
 
-    # Build descriptive run name from smoothing config
+    # Build descriptive run name from smoothing config# Build descriptive run name from smoothing config
     gs = config.get('grad_smooth', None)
     if gs is not None and gs.get('method', 'none') != 'none':
         parts = [config.config_name]
@@ -289,6 +289,11 @@ def main(argv):
         norm = gs.get('normalize', 'none')
         if norm != 'none':
             parts.append(f'norm-{norm}')
+        if gs.get('proj_only', False):
+            parts.append('proj-only')
+        grouping = gs.get('block_grouping', 'separate')
+        if grouping != 'separate':
+            parts.append(grouping)
         if gs.get('decouple_weight_decay', False):
             parts.append('decouple-wd')
         config.run_name = '-'.join(parts)
